@@ -1,0 +1,41 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "actor-mpsv-social-services"
+version = "0.1.0"
+description = "Apify Actor that fetches social service listings from the Czech MPSV public registry."
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "apify>=3.4.0",
+    "pydantic>=2.13.4",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.15.13",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mpsv_social_services"]
+
+[tool.ruff]
+target-version = "py314"
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+    "RUF",  # ruff-specific rules
+]
+
+[tool.ruff.format]
+quote-style = "single"

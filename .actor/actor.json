@@ -1,0 +1,172 @@
+{
+  "$schema": "https://apify-projects.github.io/actor-json-schemas/actor.ide.json?v=0.7",
+  "actorSpecification": 1,
+  "name": "mpsv-social-services-exporter",
+  "title": "MPSV Social Services Registry Exporter",
+  "version": "0.1",
+  "description": "Fetches social service listings from the Czech MPSV (Ministry of Labour and Social Affairs) public registry. Returns structured data about providers, services, and facilities.",
+  "buildTag": "latest",
+  "dockerfile": "../Dockerfile",
+  "readme": "../README.md",
+  "input": {
+    "title": "MPSV Social Services Input",
+    "type": "object",
+    "schemaVersion": 1,
+    "description": "Select which social service types to fetch from the MPSV registry. Leave empty to fetch all.",
+    "properties": {
+      "serviceTypes": {
+        "title": "Service Types (Druh služby)",
+        "type": "array",
+        "description": "Which social service types to query. If empty, all 34 types are fetched.",
+        "editor": "select",
+        "items": {
+          "type": "string",
+          "enum": [
+            "ODBORNE_SOCIALNI_PORADENSTVI",
+            "OSOBNI_ASISTENCE",
+            "PECOVATELSKA_SLUZBA",
+            "TISNOVA_PECE",
+            "PRUVODCOVSKE_A_PREDCITATELSKE_SLUZBY",
+            "PODPORA_SAMOSTATNEHO_BYDLENI",
+            "ODLEHCOVACI_SLUZBY",
+            "CENTRA_DENNICH_SLUZEB",
+            "DENNI_STACIONARE",
+            "TYDENNI_STACIONARE",
+            "DOMOVY_PRO_OSOBY_SE_ZDRAVOTNIM_POSTIZENIM",
+            "DOMOVY_PRO_SENIORY",
+            "DOMOVY_SE_ZVLASTNIM_REZIMEM",
+            "CHRANENE_BYDLENI",
+            "SOCIALNI_SLUZBY_VE_ZDRAVOTNICKYCH_ZARIZENICH",
+            "RANA_PECE",
+            "TELEFONICKA_KRIZOVA_POMOC",
+            "TLUMOCNICKE_SLUZBY",
+            "AZYLOVE_DOMY",
+            "DOMY_NA_PUL_CESTY",
+            "KONTAKTNI_CENTRA",
+            "KRIZOVA_POMOC",
+            "NIZKOPRAHOVA_DENNI_CENTRA",
+            "NIZKOPRAHOVA_ZARIZENI_PRO_DETI_A_MLADEZ",
+            "NOCLEHARNY",
+            "SLUZBY_NASLEDNE_PECE",
+            "SOCIALNE_AKTIVIZACNI_SLUZBY_PRO_RODINY_S_DETMI",
+            "SOCIALNE_AKTIVIZACNI_SLUZBY_PRO_SENIORY_A_OZP",
+            "SOCIALNE_TERAPEUTICKE_DILNY",
+            "TERAPEUTICKE_KOMUNITY",
+            "TERENNI_PROGRAMY",
+            "SOCIALNI_REHABILITACE",
+            "INTERVENCNI_CENTRA",
+            "CENTRUM_DUSEVNIHO_ZDRAVI"
+          ],
+          "enumTitles": [
+            "Odborné sociální poradenství",
+            "Osobní asistence",
+            "Pečovatelská služba",
+            "Tísňová péče",
+            "Průvodcovské a předčitatelské služby",
+            "Podpora samostatného bydlení",
+            "Odlehčovací služby",
+            "Centra denních služeb",
+            "Denní stacionáře",
+            "Týdenní stacionáře",
+            "Domovy pro osoby se zdravotním postižením",
+            "Domovy pro seniory",
+            "Domovy se zvláštním režimem",
+            "Chráněné bydlení",
+            "Sociální služby ve zdravotnických zařízeních lůžkové péče",
+            "Raná péče",
+            "Telefonická krizová pomoc",
+            "Tlumočnické služby",
+            "Azylové domy",
+            "Domy na půl cesty",
+            "Kontaktní centra",
+            "Krizová pomoc",
+            "Nízkoprahová denní centra",
+            "Nízkoprahová zařízení pro děti a mládež",
+            "Noclehárny",
+            "Služby následné péče",
+            "Sociálně aktivizační služby pro rodiny s dětmi",
+            "Sociálně aktivizační služby pro seniory a osoby se zdravotním postižením",
+            "Sociálně terapeutické dílny",
+            "Terapeutické komunity",
+            "Terénní programy",
+            "Sociální rehabilitace",
+            "Intervenční centra",
+            "Centrum duševního zdraví"
+          ]
+        },
+        "default": []
+      },
+      "serviceForm": {
+        "title": "Service Form (Forma poskytování)",
+        "type": "string",
+        "description": "Optional filter by service delivery form. Leave empty for all forms.",
+        "editor": "select",
+        "enum": [
+          "",
+          "AMBULANTNI",
+          "POBYTOVA",
+          "TERENNI"
+        ],
+        "enumTitles": [
+          "All forms (no filter)",
+          "Ambulantní",
+          "Pobytová",
+          "Terénní"
+        ],
+        "default": ""
+      }
+    }
+  },
+  "storages": {
+    "dataset": {
+      "actorSpecification": 1,
+      "title": "MPSV Social Services",
+      "description": "Social service listings from the MPSV registry.",
+      "views": {
+        "overview": {
+          "title": "Overview",
+          "description": "All social services fetched from the MPSV registry.",
+          "transformation": {
+            "fields": [
+              "queryLabel",
+              "providerIco",
+              "providerName",
+              "serviceIdentifier",
+              "serviceFrom",
+              "serviceTo"
+            ]
+          },
+          "display": {
+            "component": "table",
+            "properties": {
+              "queryLabel": {
+                "label": "Service Type",
+                "format": "text"
+              },
+              "providerIco": {
+                "label": "IČO",
+                "format": "text"
+              },
+              "providerName": {
+                "label": "Provider",
+                "format": "text"
+              },
+              "serviceIdentifier": {
+                "label": "IČS",
+                "format": "text"
+              },
+              "serviceFrom": {
+                "label": "Service From",
+                "format": "text"
+              },
+              "serviceTo": {
+                "label": "Service To",
+                "format": "text"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
