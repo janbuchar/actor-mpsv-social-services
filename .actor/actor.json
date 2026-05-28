@@ -96,24 +96,25 @@
         },
         "default": []
       },
-      "serviceForm": {
-        "title": "Service Form (Forma poskytování)",
-        "type": "string",
-        "description": "Optional filter by service delivery form. Leave empty for all forms.",
+      "serviceForms": {
+        "title": "Service Forms (Forma poskytování)",
+        "type": "array",
+        "description": "Filter by service delivery form. If empty, all forms are included.",
         "editor": "select",
-        "enum": [
-          "",
-          "AMBULANTNI",
-          "POBYTOVA",
-          "TERENNI"
-        ],
-        "enumTitles": [
-          "All forms (no filter)",
-          "Ambulantní",
-          "Pobytová",
-          "Terénní"
-        ],
-        "default": ""
+        "items": {
+          "type": "string",
+          "enum": [
+            "AMBULANTNI",
+            "POBYTOVA",
+            "TERENNI"
+          ],
+          "enumTitles": [
+            "Ambulantní",
+            "Pobytová",
+            "Terénní"
+          ]
+        },
+        "default": []
       }
     }
   },
@@ -132,6 +133,7 @@
               "providerIco",
               "providerName",
               "serviceIdentifier",
+              "serviceFormLabels",
               "serviceFrom",
               "serviceTo"
             ]
@@ -153,6 +155,10 @@
               },
               "serviceIdentifier": {
                 "label": "IČS",
+                "format": "text"
+              },
+              "serviceFormLabels": {
+                "label": "Forms",
                 "format": "text"
               },
               "serviceFrom": {
