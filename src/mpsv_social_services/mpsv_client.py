@@ -3,14 +3,11 @@
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import json
 import logging
-import sqlite3
 import time
 from datetime import date
 from enum import IntEnum
-from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
 
@@ -28,14 +25,14 @@ _COMMON_HEADERS = {
     'Referer': 'https://mpsv.gov.cz/registr-poskytovatelu-sluzeb',
 }
 
-# Default cache TTL: 24 hours
-_DEFAULT_CACHE_TTL = 86400
-
 # Retry settings for transient HTTP errors (5xx, timeouts, network issues)
 _MAX_RETRIES = 5
 _INITIAL_BACKOFF = 2.0  # seconds
 _BACKOFF_FACTOR = 2.0
 _RETRYABLE_STATUS_CODES = {500, 502, 503, 504}
+
+# Polite delay between consecutive API requests to avoid server-side rate limiting.
+_REQUEST_DELAY = 1.0  # seconds
 
 
 # ---------------------------------------------------------------------------
@@ -270,67 +267,6 @@ class Spojeni(BaseModel, extra='ignore'):
 
 
 # ---------------------------------------------------------------------------
-# HTTP cache (SQLite-backed, survives restarts)
-# ---------------------------------------------------------------------------
-
-
-class HttpCache:
-    """Simple SQLite-backed HTTP response cache.
-
-    Caches raw response bodies keyed by (method, url, request_body_hash).
-    """
-
-    def __init__(self, db_path: str | Path = '.http_cache.db', ttl: int = _DEFAULT_CACHE_TTL) -> None:
-        self._ttl = ttl
-        self._conn = sqlite3.connect(str(db_path))
-        self._conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS cache (
-                key TEXT PRIMARY KEY,
-                response_body TEXT NOT NULL,
-                status_code INTEGER NOT NULL,
-                created_at REAL NOT NULL
-            )
-            """
-        )
-        self._conn.commit()
-
-    def _make_key(self, method: str, url: str, body: bytes | None) -> str:
-        h = hashlib.sha256()
-        h.update(method.encode())
-        h.update(url.encode())
-        if body:
-            h.update(body)
-        return h.hexdigest()
-
-    def get(self, method: str, url: str, body: bytes | None = None) -> tuple[int, str] | None:
-        """Return (status_code, response_body) if cached and fresh, else None."""
-        key = self._make_key(method, url, body)
-        row = self._conn.execute(
-            'SELECT status_code, response_body, created_at FROM cache WHERE key = ?', (key,)
-        ).fetchone()
-        if row is None:
-            return None
-        status_code, response_body, created_at = row
-        if time.time() - created_at > self._ttl:
-            self._conn.execute('DELETE FROM cache WHERE key = ?', (key,))
-            self._conn.commit()
-            return None
-        return (status_code, response_body)
-
-    def put(self, method: str, url: str, body: bytes | None, status_code: int, response_body: str) -> None:
-        key = self._make_key(method, url, body)
-        self._conn.execute(
-            'INSERT OR REPLACE INTO cache (key, response_body, status_code, created_at) VALUES (?, ?, ?, ?)',
-            (key, response_body, status_code, time.time()),
-        )
-        self._conn.commit()
-
-    def close(self) -> None:
-        self._conn.close()
-
-
-# ---------------------------------------------------------------------------
 # Client
 # ---------------------------------------------------------------------------
 
@@ -357,41 +293,40 @@ class MpsvClient:
     """Client for the MPSV registr-poskytovatelu REST API.
 
     Uses impit for HTTP requests (TLS fingerprint-friendly).
-    Caches responses in a local SQLite database to avoid redundant API calls.
     """
 
-    def __init__(self, *, cache_path: str | Path = '.http_cache.db', cache_ttl: int = _DEFAULT_CACHE_TTL) -> None:
+    def __init__(self) -> None:
         self._client = AsyncClient(browser='firefox', timeout=60)
-        self._cache = HttpCache(db_path=cache_path, ttl=cache_ttl)
+        self._last_request_time: float = 0.0
 
     # ------------------------------------------------------------------
-    # Low-level HTTP with caching
+    # Low-level HTTP
     # ------------------------------------------------------------------
 
     async def _request(self, method: str, url: str, body: bytes | None = None) -> dict[str, Any]:
-        """Make an HTTP request, using cache if available.
+        """Make an HTTP request.
 
         Retries on transient errors (5xx, timeouts, network issues) with exponential backoff.
         """
-        cached = self._cache.get(method, url, body)
-        if cached is not None:
-            status_code, response_body = cached
-            logger.debug('Cache HIT: %s %s', method, url)
-            return json.loads(response_body)
-
-        logger.debug('Cache MISS: %s %s', method, url)
 
         last_exception: Exception | None = None
         backoff = _INITIAL_BACKOFF
 
         for attempt in range(1, _MAX_RETRIES + 1):
             try:
+                # Throttle: wait if the previous request was too recent
+                elapsed = time.monotonic() - self._last_request_time
+                if elapsed < _REQUEST_DELAY:
+                    await asyncio.sleep(_REQUEST_DELAY - elapsed)
+
                 if method == 'GET':
                     response = await self._client.get(url, headers=_COMMON_HEADERS)
                 elif method == 'POST':
                     response = await self._client.post(url, headers=_COMMON_HEADERS, content=body)
                 else:
                     raise ValueError(f'Unsupported method: {method}')
+
+                self._last_request_time = time.monotonic()
 
                 status: int = response.status_code  # type: ignore[reportUnknownMemberType]
 
@@ -406,8 +341,6 @@ class MpsvClient:
 
                 response.raise_for_status()  # type: ignore[reportUnknownMemberType] - impit has no stubs
                 response_text: str = response.text  # type: ignore[reportUnknownMemberType]
-
-                self._cache.put(method, url, body, status, response_text)
                 return json.loads(response_text)
 
             except TransportError as exc:
