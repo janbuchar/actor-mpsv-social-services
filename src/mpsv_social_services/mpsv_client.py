@@ -406,6 +406,62 @@ class MpsvClient:
 
         return SearchResult(total=data.get('count', 0), items=items)
 
+    async def _search_page_with_skip(
+        self,
+        *,
+        druh_sluzby_id: int | DruhSluzby,
+        kraj_id: int | None,
+        forma_id: int | FormaSluzby | None,
+        reference_date: date | None,
+        start: int,
+        count: int,
+    ) -> SearchResult:
+        """Fetch a page of results, skipping individual poison records on server error.
+
+        If the page request fails, falls back to fetching records one-by-one
+        so that only the truly broken record(s) are skipped.
+        """
+        try:
+            return await self.search(
+                druh_sluzby_id=druh_sluzby_id,
+                kraj_id=kraj_id,
+                forma_id=forma_id,
+                reference_date=reference_date,
+                start=start,
+                count=count,
+            )
+        except Exception:
+            if count <= 1:
+                logger.warning('Skipping poison record at offset %d (server returns 500).', start)
+                return SearchResult(total=-1, items=[])
+
+            logger.warning(
+                'Page start=%d count=%d failed, fetching records individually to skip bad ones ...', start, count,
+            )
+
+        # Fetch one-by-one to isolate the bad record(s)
+        items: list[SearchResultItem] = []
+        total = -1
+        for offset in range(start, start + count):
+            try:
+                result = await self.search(
+                    druh_sluzby_id=druh_sluzby_id,
+                    kraj_id=kraj_id,
+                    forma_id=forma_id,
+                    reference_date=reference_date,
+                    start=offset,
+                    count=1,
+                )
+                if total == -1:
+                    total = result.total
+                items.extend(result.items)
+                if not result.items:
+                    break
+            except Exception:
+                logger.warning('Skipping poison record at offset %d (server returns 500).', offset)
+
+        return SearchResult(total=total if total != -1 else 0, items=items)
+
     async def search_all(
         self,
         *,
@@ -418,9 +474,10 @@ class MpsvClient:
         """Paginate through all search results automatically."""
         all_items: list[SearchResultItem] = []
         start = 0
+        total: int | None = None
 
         while True:
-            result = await self.search(
+            result = await self._search_page_with_skip(
                 druh_sluzby_id=druh_sluzby_id,
                 kraj_id=kraj_id,
                 forma_id=forma_id,
@@ -428,9 +485,13 @@ class MpsvClient:
                 start=start,
                 count=page_size,
             )
+            if total is None and result.total >= 0:
+                total = result.total
             all_items.extend(result.items)
 
-            if len(all_items) >= result.total or len(result.items) == 0:
+            if total is not None and len(all_items) >= total:
+                break
+            if len(result.items) == 0:
                 break
 
             start += page_size
