@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -13,7 +14,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
 
-from impit import AsyncClient
+from impit import AsyncClient, TransportError
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,12 @@ _COMMON_HEADERS = {
 
 # Default cache TTL: 24 hours
 _DEFAULT_CACHE_TTL = 86400
+
+# Retry settings for transient HTTP errors (5xx, timeouts, network issues)
+_MAX_RETRIES = 5
+_INITIAL_BACKOFF = 2.0  # seconds
+_BACKOFF_FACTOR = 2.0
+_RETRYABLE_STATUS_CODES = {500, 502, 503, 504}
 
 
 # ---------------------------------------------------------------------------
@@ -362,7 +369,10 @@ class MpsvClient:
     # ------------------------------------------------------------------
 
     async def _request(self, method: str, url: str, body: bytes | None = None) -> dict[str, Any]:
-        """Make an HTTP request, using cache if available."""
+        """Make an HTTP request, using cache if available.
+
+        Retries on transient errors (5xx, timeouts, network issues) with exponential backoff.
+        """
         cached = self._cache.get(method, url, body)
         if cached is not None:
             status_code, response_body = cached
@@ -371,19 +381,52 @@ class MpsvClient:
 
         logger.debug('Cache MISS: %s %s', method, url)
 
-        if method == 'GET':
-            response = await self._client.get(url, headers=_COMMON_HEADERS)
-        elif method == 'POST':
-            response = await self._client.post(url, headers=_COMMON_HEADERS, content=body)
-        else:
-            raise ValueError(f'Unsupported method: {method}')
+        last_exception: Exception | None = None
+        backoff = _INITIAL_BACKOFF
 
-        response.raise_for_status()  # type: ignore[reportUnknownMemberType] - impit has no stubs
-        response_text: str = response.text  # type: ignore[reportUnknownMemberType]
-        status: int = response.status_code  # type: ignore[reportUnknownMemberType]
+        for attempt in range(1, _MAX_RETRIES + 1):
+            try:
+                if method == 'GET':
+                    response = await self._client.get(url, headers=_COMMON_HEADERS)
+                elif method == 'POST':
+                    response = await self._client.post(url, headers=_COMMON_HEADERS, content=body)
+                else:
+                    raise ValueError(f'Unsupported method: {method}')
 
-        self._cache.put(method, url, body, status, response_text)
-        return json.loads(response_text)
+                status: int = response.status_code  # type: ignore[reportUnknownMemberType]
+
+                if status in _RETRYABLE_STATUS_CODES:
+                    logger.warning(
+                        'HTTP %d from %s %s (attempt %d/%d), retrying in %.1fs ...',
+                        status, method, url, attempt, _MAX_RETRIES, backoff,
+                    )
+                    await asyncio.sleep(backoff)
+                    backoff *= _BACKOFF_FACTOR
+                    continue
+
+                response.raise_for_status()  # type: ignore[reportUnknownMemberType] - impit has no stubs
+                response_text: str = response.text  # type: ignore[reportUnknownMemberType]
+
+                self._cache.put(method, url, body, status, response_text)
+                return json.loads(response_text)
+
+            except TransportError as exc:
+                last_exception = exc
+                logger.warning(
+                    '%s on %s %s (attempt %d/%d), retrying in %.1fs ...',
+                    type(exc).__name__, method, url, attempt, _MAX_RETRIES, backoff,
+                )
+                await asyncio.sleep(backoff)
+                backoff *= _BACKOFF_FACTOR
+
+        # All retries exhausted — raise the last error we saw
+        if last_exception is not None:
+            raise last_exception
+
+        # If we got here, all attempts returned retryable status codes
+        raise RuntimeError(
+            f'Request to {method} {url} failed after {_MAX_RETRIES} retries with HTTP {status}'
+        )
 
     # ------------------------------------------------------------------
     # Search
