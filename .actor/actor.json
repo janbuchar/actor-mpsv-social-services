@@ -94,7 +94,8 @@
             "Centrum duševního zdraví"
           ]
         },
-        "default": []
+        "default": [],
+        "prefill": ["ODBORNE_SOCIALNI_PORADENSTVI"]
       },
       "serviceForms": {
         "title": "Service Forms (Forma poskytování)",
