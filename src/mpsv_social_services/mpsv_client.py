@@ -98,7 +98,9 @@ DRUH_SLUZBY_LABELS: dict[DruhSluzby, str] = {
     DruhSluzby.DOMOVY_PRO_SENIORY: 'Domovy pro seniory',
     DruhSluzby.DOMOVY_SE_ZVLASTNIM_REZIMEM: 'Domovy se zvláštním režimem',
     DruhSluzby.CHRANENE_BYDLENI: 'Chráněné bydlení',
-    DruhSluzby.SOCIALNI_SLUZBY_VE_ZDRAVOTNICKYCH_ZARIZENICH: 'Sociální služby poskytované ve zdravotnických zařízeních lůžkové péče',
+    DruhSluzby.SOCIALNI_SLUZBY_VE_ZDRAVOTNICKYCH_ZARIZENICH: (
+        'Sociální služby poskytované ve zdravotnických zařízeních lůžkové péče'
+    ),
     DruhSluzby.RANA_PECE: 'Raná péče',
     DruhSluzby.TELEFONICKA_KRIZOVA_POMOC: 'Telefonická krizová pomoc',
     DruhSluzby.TLUMOCNICKE_SLUZBY: 'Tlumočnické služby',
@@ -111,7 +113,9 @@ DRUH_SLUZBY_LABELS: dict[DruhSluzby, str] = {
     DruhSluzby.NOCLEHARNY: 'Noclehárny',
     DruhSluzby.SLUZBY_NASLEDNE_PECE: 'Služby následné péče',
     DruhSluzby.SOCIALNE_AKTIVIZACNI_SLUZBY_PRO_RODINY_S_DETMI: 'Sociálně aktivizační služby pro rodiny s dětmi',
-    DruhSluzby.SOCIALNE_AKTIVIZACNI_SLUZBY_PRO_SENIORY_A_OZP: 'Sociálně aktivizační služby pro seniory a osoby se zdravotním postižením',
+    DruhSluzby.SOCIALNE_AKTIVIZACNI_SLUZBY_PRO_SENIORY_A_OZP: (
+        'Sociálně aktivizační služby pro seniory a osoby se zdravotním postižením'
+    ),
     DruhSluzby.SOCIALNE_TERAPEUTICKE_DILNY: 'Sociálně terapeutické dílny',
     DruhSluzby.TERAPEUTICKE_KOMUNITY: 'Terapeutické komunity',
     DruhSluzby.TERENNI_PROGRAMY: 'Terénní programy',
@@ -137,7 +141,7 @@ FORMA_SLUZBY_LABELS: dict[FormaSluzby, str] = {
 
 
 # ---------------------------------------------------------------------------
-# Pydantic models – search results
+# Pydantic models - search results
 # ---------------------------------------------------------------------------
 
 
@@ -219,7 +223,7 @@ class SearchResult(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Pydantic models – spojení (contacts / addresses)
+# Pydantic models - spojení (contacts / addresses)
 # ---------------------------------------------------------------------------
 
 
@@ -333,7 +337,12 @@ class MpsvClient:
                 if status in _RETRYABLE_STATUS_CODES:
                     logger.warning(
                         'HTTP %d from %s %s (attempt %d/%d), retrying in %.1fs ...',
-                        status, method, url, attempt, _MAX_RETRIES, backoff,
+                        status,
+                        method,
+                        url,
+                        attempt,
+                        _MAX_RETRIES,
+                        backoff,
                     )
                     await asyncio.sleep(backoff)
                     backoff *= _BACKOFF_FACTOR
@@ -347,7 +356,12 @@ class MpsvClient:
                 last_exception = exc
                 logger.warning(
                     '%s on %s %s (attempt %d/%d), retrying in %.1fs ...',
-                    type(exc).__name__, method, url, attempt, _MAX_RETRIES, backoff,
+                    type(exc).__name__,
+                    method,
+                    url,
+                    attempt,
+                    _MAX_RETRIES,
+                    backoff,
                 )
                 await asyncio.sleep(backoff)
                 backoff *= _BACKOFF_FACTOR
@@ -357,9 +371,7 @@ class MpsvClient:
             raise last_exception
 
         # If we got here, all attempts returned retryable status codes
-        raise RuntimeError(
-            f'Request to {method} {url} failed after {_MAX_RETRIES} retries with HTTP {status}'
-        )
+        raise RuntimeError(f'Request to {method} {url} failed after {_MAX_RETRIES} retries with HTTP {status}')
 
     # ------------------------------------------------------------------
     # Search
@@ -436,7 +448,9 @@ class MpsvClient:
                 return SearchResult(total=-1, items=[])
 
             logger.warning(
-                'Page start=%d count=%d failed, fetching records individually to skip bad ones ...', start, count,
+                'Page start=%d count=%d failed, fetching records individually to skip bad ones ...',
+                start,
+                count,
             )
 
         # Fetch one-by-one to isolate the bad record(s)

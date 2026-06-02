@@ -1,0 +1,3 @@
+[default.extend-words]
+# Czech word for "registry", part of the MPSV API path "registr-poskytovatelu-sluzeb"
+registr = "registr"

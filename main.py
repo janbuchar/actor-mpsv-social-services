@@ -87,7 +87,7 @@ def _resolve_forma_label(forma_id: int) -> str | None:
     """Look up the human-readable label for a forma ID, or None if unknown."""
     try:
         return FORMA_SLUZBY_LABELS[FormaSluzby(forma_id)]
-    except (ValueError, KeyError):
+    except ValueError, KeyError:
         return None
 
 
@@ -208,10 +208,9 @@ async def main() -> None:
                 logger.info('  -> %d after form filter', len(matched))
 
             if matched:
-                await Actor.push_data([
-                    DatasetItem.from_search_result(item, label).model_dump(by_alias=True)
-                    for item in matched
-                ])
+                await Actor.push_data(
+                    [DatasetItem.from_search_result(item, label).model_dump(by_alias=True) for item in matched]
+                )
                 total_count += len(matched)
 
         logger.info('Done. Pushed %d service records total.', total_count)
